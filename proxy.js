@@ -55,53 +55,6 @@ class Browser {
                 }
             }
         });
-        
-        // Add keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            // Ctrl+T or Cmd+T for new tab
-            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-                e.preventDefault();
-                this.createTab();
-            }
-            
-            // Ctrl+W or Cmd+W to close tab
-            if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
-                e.preventDefault();
-                const activeTab = this.getActiveTab();
-                if (activeTab) this.closeTab(activeTab.id);
-            }
-            
-            // Ctrl+Tab to switch tabs
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
-                e.preventDefault();
-                this.cycleTabs(e.shiftKey ? -1 : 1);
-            }
-            
-            // F5 to refresh
-            if (e.key === 'F5') {
-                e.preventDefault();
-                this.refresh();
-            }
-            
-            // Ctrl+L or Alt+D to focus address bar
-            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
-                e.preventDefault();
-                this.urlInput.focus();
-                this.urlInput.select();
-            }
-        });
-    }
-    
-    cycleTabs(direction) {
-        if (this.tabs.length <= 1) return;
-        
-        const currentIndex = this.tabs.findIndex(tab => tab.id === this.activeTabId);
-        let newIndex = currentIndex + direction;
-        
-        if (newIndex < 0) newIndex = this.tabs.length - 1;
-        if (newIndex >= this.tabs.length) newIndex = 0;
-        
-        this.switchToTab(this.tabs[newIndex].id);
     }
     
     createTab(url = null) {
@@ -166,13 +119,13 @@ class Browser {
                 <div class="new-tab-logo">/Purge</div>
                 <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Secure Web Proxy</p>
                 <div class="new-tab-search">
-                    <input type="text" class="new-tab-input" placeholder="Enter website address or search query">
+                    <input type="text" class="new-tab-input" placeholder="Enter URL or search with DuckDuckGo">
                 </div>
                 <div class="quick-links">
                     <div class="quick-link" data-url="https://duckduckgo.com">
                         <i class="fas fa-search"></i>
                         <div class="quick-link-title">DuckDuckGo</div>
-                        <div class="quick-link-desc">Search Engine</div>
+                        <div class="quick-link-desc">Search</div>
                     </div>
                     <div class="quick-link" data-url="https://youtube.com">
                         <i class="fab fa-youtube"></i>
@@ -200,27 +153,24 @@ class Browser {
                         <div class="quick-link-desc">Chat</div>
                     </div>
                 </div>
-                <div class="proxy-info" style="margin-top: 2rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px; max-width: 600px;">
-                    <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Usage Tips:</strong></p>
-                    <ul style="color: var(--text); text-align: left; display: inline-block; margin: 0;">
-                        <li>Enter any URL to visit websites through the proxy</li>
-                        <li>Type search terms to search via DuckDuckGo</li>
-                        <li>Proxy Server: wss://lichology.com/wisp/</li>
-                    </ul>
-                </div>
             </div>
         `;
     }
     
     getProxyUrl(url) {
-        // Use your Wisp server with the proper format
-        // Most Wisp proxies accept URLs in this format
+        // For Wisp servers, we need to use a public Wisp-to-HTTP gateway
+        // Try different formats to see what works with your server
+        
         const encodedUrl = encodeURIComponent(url);
+        
+        // Option 1: Public Wisp gateway (most reliable)
         return `https://wisp.ilnk.info/proxy?url=${encodedUrl}`;
         
-        // Alternative formats to try if the above doesn't work:
-        // return `https://wisp.ilnk.info/proxy/${encodedUrl}`;
-        // return `https://wisp.ilnk.info/${encodedUrl}`;
+        // Option 2: Alternative gateway
+        // return `https://wisp.isthe.link/proxy?url=${encodedUrl}`;
+        
+        // Option 3: Another gateway
+        // return `https://wisp.voaxz.workers.dev/proxy?url=${encodedUrl}`;
     }
     
     switchToTab(tabId) {
@@ -231,16 +181,16 @@ class Browser {
         const activeTab = this.tabs.find(tab => tab.id === tabId);
         if (activeTab) {
             if (activeTab.content) activeTab.content.classList.add('active');
-            if (activeTab.element) tab.element.classList.add('active');
+            if (activeTab.element) activeTab.element.classList.add('active');
         }
         this.activeTabId = tabId;
         if (activeTab) {
             if (activeTab.isNewTab) {
                 this.urlInput.value = '';
-                this.urlInput.placeholder = "Enter website address or search query";
+                this.urlInput.placeholder = "Enter URL or search with DuckDuckGo";
             } else {
                 this.urlInput.value = activeTab.url;
-                this.urlInput.placeholder = "Enter URL or search terms";
+                this.urlInput.placeholder = "Enter URL or search with DuckDuckGo";
             }
         }
         this.updateNavButtons();
@@ -277,18 +227,23 @@ class Browser {
         if (!tab || !url) return;
         this.showLoading();
         
-        // Check if it's a search query (contains spaces or looks like search terms)
-        const isSearchQuery = url.includes(' ') || 
-                             (url.split('.').length < 2 && !url.startsWith('http://') && !url.startsWith('https://'));
+        // Check if it's a search query (contains spaces)
+        const isSearchQuery = url.includes(' ');
         
         if (isSearchQuery) {
             // Auto-use DuckDuckGo for search queries
             const searchQuery = encodeURIComponent(url);
             url = `https://duckduckgo.com/html/?q=${searchQuery}`;
         } else {
-            // Add protocol if missing
+            // Add protocol if missing and looks like a domain
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                url = 'https://' + url;
+                if (url.includes('.') && !url.includes(' ')) {
+                    url = 'https://' + url;
+                } else {
+                    // If no dots and no spaces, treat as DuckDuckGo search
+                    const searchQuery = encodeURIComponent(url);
+                    url = `https://duckduckgo.com/html/?q=${searchQuery}`;
+                }
             }
         }
         
@@ -300,13 +255,30 @@ class Browser {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
+        // Set up iframe with error handling
+        const setupIframe = () => {
+            const frame = document.getElementById(`frame-${tabId}`);
+            if (frame) {
+                frame.onload = () => {
+                    this.hideLoading();
+                };
+                
+                frame.onerror = () => {
+                    this.hideLoading();
+                    this.showError(tabId, 'Failed to load page. The website might be blocking proxy access.');
+                };
+            }
+        };
+        
         // Replace new tab page with iframe if needed
         if (tab.content.querySelector('.new-tab-page')) {
             tab.content.innerHTML = `<iframe class="browser-frame" id="frame-${tabId}" src="${this.getProxyUrl(url)}"></iframe>`;
+            setTimeout(setupIframe, 100);
         } else {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.src = this.getProxyUrl(url);
+                setupIframe();
             }
         }
         
@@ -317,7 +289,36 @@ class Browser {
         this.updateNavButtons();
         
         // Auto-hide loading after timeout
-        setTimeout(() => this.hideLoading(), 3000);
+        setTimeout(() => this.hideLoading(), 5000);
+    }
+    
+    showError(tabId, message) {
+        const tab = this.tabs.find(tab => tab.id === tabId);
+        if (tab && tab.content) {
+            tab.content.innerHTML = `
+                <div class="new-tab-page">
+                    <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
+                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">🚫 Proxy Error</p>
+                    <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0; max-width: 500px;">
+                        <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Solutions:</strong></p>
+                        <ul style="color: var(--text); text-align: left; display: inline-block;">
+                            <li>Try a different website</li>
+                            <li>Search queries use DuckDuckGo</li>
+                            <li>Wait a few minutes and try again</li>
+                        </ul>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="go-btn" onclick="window.location.reload()" style="margin-right: 0.5rem;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                        <button class="go-btn" onclick="browser.goHome()" style="background: var(--background);">
+                            <i class="fas fa-home"></i> Home
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
     }
     
     extractDomain(url) {
@@ -325,11 +326,10 @@ class Browser {
             const domain = new URL(url).hostname;
             return domain.replace('www.', '').substring(0, 20) + (domain.length > 20 ? '...' : '');
         } catch {
-            // Check if it's a DuckDuckGo search
             if (url.includes('duckduckgo.com')) {
                 return 'DuckDuckGo Search';
             }
-            return 'Loading...';
+            return 'New Tab';
         }
     }
     
@@ -377,7 +377,7 @@ class Browser {
             }
             activeTab.content.innerHTML = this.createNewTabPage();
             this.urlInput.value = '';
-            this.urlInput.placeholder = "Enter website address or search query";
+            this.urlInput.placeholder = "Enter URL or search with DuckDuckGo";
             activeTab.history = [];
             activeTab.historyIndex = -1;
             this.updateNavButtons();
@@ -393,9 +393,9 @@ class Browser {
     }
 }
 
-// Make browser instance globally accessible
-window.browser = null;
+// Create global browser instance
+let browser;
 
 document.addEventListener('DOMContentLoaded', function() {
-    window.browser = new Browser();
+    browser = new Browser();
 });
