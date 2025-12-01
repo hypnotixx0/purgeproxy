@@ -55,6 +55,53 @@ class Browser {
                 }
             }
         });
+        
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+T or Cmd+T for new tab
+            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                e.preventDefault();
+                this.createTab();
+            }
+            
+            // Ctrl+W or Cmd+W to close tab
+            if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+                e.preventDefault();
+                const activeTab = this.getActiveTab();
+                if (activeTab) this.closeTab(activeTab.id);
+            }
+            
+            // Ctrl+Tab to switch tabs
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
+                e.preventDefault();
+                this.cycleTabs(e.shiftKey ? -1 : 1);
+            }
+            
+            // F5 to refresh
+            if (e.key === 'F5') {
+                e.preventDefault();
+                this.refresh();
+            }
+            
+            // Ctrl+L or Alt+D to focus address bar
+            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
+                e.preventDefault();
+                this.urlInput.focus();
+                this.urlInput.select();
+            }
+        });
+    }
+    
+    cycleTabs(direction) {
+        if (this.tabs.length <= 1) return;
+        
+        const currentIndex = this.tabs.findIndex(tab => tab.id === this.activeTabId);
+        let newIndex = currentIndex + direction;
+        
+        if (newIndex < 0) newIndex = this.tabs.length - 1;
+        if (newIndex >= this.tabs.length) newIndex = 0;
+        
+        this.switchToTab(this.tabs[newIndex].id);
     }
     
     createTab(url = null) {
@@ -119,7 +166,7 @@ class Browser {
                 <div class="new-tab-logo">/Purge</div>
                 <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Full Web Proxy</p>
                 <div class="new-tab-search">
-                    <input type="text" class="new-tab-input" placeholder="Enter website address">
+                    <input type="text" class="new-tab-input" placeholder="Enter website address or search query">
                 </div>
                 <div class="quick-links">
                     <div class="quick-link" data-url="https://orteil.dashnet.org/cookieclicker/">
@@ -130,7 +177,7 @@ class Browser {
                     <div class="quick-link" data-url="https://duckduckgo.com">
                         <i class="fas fa-search"></i>
                         <div class="quick-link-title">DuckDuckGo</div>
-                        <div class="quick-link-desc">Search</div>
+                        <div class="quick-link-desc">Search Engine</div>
                     </div>
                     <div class="quick-link" data-url="https://youtube.com">
                         <i class="fab fa-youtube"></i>
@@ -153,14 +200,24 @@ class Browser {
                         <div class="quick-link-desc">Chat</div>
                     </div>
                 </div>
+                <div class="proxy-info" style="margin-top: 2rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
+                    <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Search Tips:</strong></p>
+                    <ul style="color: var(--text); text-align: left; display: inline-block; margin: 0;">
+                        <li>Enter any URL to visit websites</li>
+                        <li>Type search terms to search via DuckDuckGo</li>
+                        <li>Proxy Server: wss://lichology.com/wisp/</li>
+                    </ul>
+                </div>
             </div>
         `;
     }
     
     getProxyUrl(url) {
-        // Use your own Cloudflare Workers Wisp server with full URL rewriting
+        // Use your Wisp server
         const encodedUrl = encodeURIComponent(url);
-        return `https://purgewisp.joshaburrjr.workers.dev/proxy/${encodedUrl}`;
+        return `https://wisp.ilnk.info/proxy?url=${encodedUrl}`;
+        // Alternative format if needed:
+        // return `https://wisp.ilnk.info/proxy/${encodedUrl}`;
     }
     
     switchToTab(tabId) {
@@ -177,10 +234,10 @@ class Browser {
         if (activeTab) {
             if (activeTab.isNewTab) {
                 this.urlInput.value = '';
-                this.urlInput.placeholder = "Enter website address";
+                this.urlInput.placeholder = "Enter website address or search query";
             } else {
                 this.urlInput.value = activeTab.url;
-                this.urlInput.placeholder = "Enter website URL";
+                this.urlInput.placeholder = "Enter URL or search terms";
             }
         }
         this.updateNavButtons();
@@ -217,15 +274,19 @@ class Browser {
         if (!tab || !url) return;
         this.showLoading();
         
-        // Add protocol if missing and not a search query
-        if (!url.startsWith('http://') && !url.startsWith('https://') && !url.includes(' ')) {
-            url = 'https://' + url;
-        }
+        // Check if it's a search query (contains spaces or is not a valid URL)
+        const isSearchQuery = url.includes(' ') || 
+                             (!url.includes('.') && !url.startsWith('http://') && !url.startsWith('https://'));
         
-        // Handle search queries (use DuckDuckGo which is more proxy-friendly)
-        if (url.includes(' ')) {
+        if (isSearchQuery) {
+            // Auto-use DuckDuckGo for search queries
             const searchQuery = encodeURIComponent(url);
             url = `https://duckduckgo.com/html/?q=${searchQuery}`;
+        } else {
+            // Add protocol if missing
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
         }
         
         tab.url = url;
@@ -299,13 +360,18 @@ class Browser {
                         <ul style="color: var(--text); text-align: left; display: inline-block;">
                             <li>Wait a few minutes and try again</li>
                             <li>Try a different website</li>
-                            <li>Use DuckDuckGo for search instead of Google</li>
                             <li>The site might be blocking proxy access</li>
+                            <li>Search queries automatically use DuckDuckGo</li>
                         </ul>
                     </div>
-                    <button class="go-btn" onclick="window.location.reload()" style="margin-top: 1rem;">
-                        <i class="fas fa-redo"></i> Retry
-                    </button>
+                    <div style="margin-top: 1rem;">
+                        <button class="go-btn" onclick="window.browser?.refresh()" style="margin-right: 0.5rem;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                        <button class="go-btn" onclick="window.browser?.goHome()" style="background: var(--background);">
+                            <i class="fas fa-home"></i> Home
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -316,7 +382,11 @@ class Browser {
             const domain = new URL(url).hostname;
             return domain.replace('www.', '').substring(0, 20) + (domain.length > 20 ? '...' : '');
         } catch {
-            return 'New Tab';
+            // Check if it's a search query
+            if (url.includes('duckduckgo.com')) {
+                return 'DuckDuckGo Search';
+            }
+            return 'Loading...';
         }
     }
     
@@ -364,7 +434,7 @@ class Browser {
             }
             activeTab.content.innerHTML = this.createNewTabPage();
             this.urlInput.value = '';
-            this.urlInput.placeholder = "Enter website address";
+            this.urlInput.placeholder = "Enter website address or search query";
             activeTab.history = [];
             activeTab.historyIndex = -1;
             this.updateNavButtons();
@@ -380,6 +450,9 @@ class Browser {
     }
 }
 
+// Make browser instance globally accessible
+window.browser = null;
+
 document.addEventListener('DOMContentLoaded', function() {
-    new Browser();
+    window.browser = new Browser();
 });
