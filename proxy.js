@@ -158,10 +158,9 @@ class Browser {
     }
     
     getProxyUrl(url) {
-        // Use Scramjet proxy with the correct format:
-        // https://scramjet.mercurywork.shop/scramjet/ENCODED_URL
+        // Use your own Cloudflare Workers Wisp server
         const encodedUrl = encodeURIComponent(url);
-        return `https://scramjet.mercurywork.shop/scramjet/${encodedUrl}`;
+        return `https://purge-proxy.joshaburrjr.workers.dev/proxy/${encodedUrl}`;
     }
     
     switchToTab(tabId) {
