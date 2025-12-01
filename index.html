@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>/Purge Proxy</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="proxy.css">
+</head>
+<body>
+    <!-- Background -->
+    <div class="background"></div>
+
+    <!-- Browser Container -->
+    <div class="browser-container">
+        <!-- Tabs Bar -->
+        <div class="tabs-bar" id="tabs-bar">
+            <!-- Tabs will be generated here -->
+        </div>
+
+        <!-- Navigation Bar -->
+        <div class="nav-bar">
+            <div class="nav-controls">
+                <button class="nav-btn" id="back-btn" title="Back" disabled>
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button class="nav-btn" id="forward-btn" title="Forward" disabled>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button class="nav-btn" id="refresh-btn" title="Refresh">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button class="nav-btn" id="home-btn" title="Home">
+                    <i class="fas fa-home"></i>
+                </button>
+            </div>
+
+            <div class="url-container">
+                <input type="text" id="url-input" class="url-input" placeholder="Search or enter website name">
+                <button id="go-btn" class="go-btn">
+                    <i class="fas fa-arrow-right"></i> Go
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading-indicator" id="loading-indicator"></div>
+
+        <!-- Content Area -->
+        <div class="content-area" id="content-area">
+            <!-- Content will be loaded here -->
+        </div>
+    </div>
+
+    <script src="proxy.js"></script>
+</body>
+</html>
