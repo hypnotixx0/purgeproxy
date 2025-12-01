@@ -117,14 +117,19 @@ class Browser {
         return `
             <div class="new-tab-page">
                 <div class="new-tab-logo">/Purge</div>
-                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Secure Web Proxy</p>
+                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Full Web Proxy</p>
                 <div class="new-tab-search">
-                    <input type="text" class="new-tab-input" placeholder="Search Google or enter website address">
+                    <input type="text" class="new-tab-input" placeholder="Enter website address">
                 </div>
                 <div class="quick-links">
-                    <div class="quick-link" data-url="https://google.com">
-                        <i class="fab fa-google"></i>
-                        <div class="quick-link-title">Google</div>
+                    <div class="quick-link" data-url="https://orteil.dashnet.org/cookieclicker/">
+                        <i class="fas fa-cookie"></i>
+                        <div class="quick-link-title">Cookie Clicker</div>
+                        <div class="quick-link-desc">Test Game</div>
+                    </div>
+                    <div class="quick-link" data-url="https://duckduckgo.com">
+                        <i class="fas fa-search"></i>
+                        <div class="quick-link-title">DuckDuckGo</div>
                         <div class="quick-link-desc">Search</div>
                     </div>
                     <div class="quick-link" data-url="https://youtube.com">
@@ -142,11 +147,6 @@ class Browser {
                         <div class="quick-link-title">Wikipedia</div>
                         <div class="quick-link-desc">Encyclopedia</div>
                     </div>
-                    <div class="quick-link" data-url="https://reddit.com">
-                        <i class="fab fa-reddit"></i>
-                        <div class="quick-link-title">Reddit</div>
-                        <div class="quick-link-desc">Community</div>
-                    </div>
                     <div class="quick-link" data-url="https://discord.com">
                         <i class="fab fa-discord"></i>
                         <div class="quick-link-title">Discord</div>
@@ -158,9 +158,9 @@ class Browser {
     }
     
     getProxyUrl(url) {
-        // Use your own Cloudflare Workers Wisp server
+        // Use your own Cloudflare Workers Wisp server with full URL rewriting
         const encodedUrl = encodeURIComponent(url);
-        return `https://purge-proxy.joshaburrjr.workers.dev/proxy/${encodedUrl}`;
+        return `https://purgewisp.joshaburrjr.workers.dev/proxy/${encodedUrl}`;
     }
     
     switchToTab(tabId) {
@@ -177,7 +177,7 @@ class Browser {
         if (activeTab) {
             if (activeTab.isNewTab) {
                 this.urlInput.value = '';
-                this.urlInput.placeholder = "Search or enter website name";
+                this.urlInput.placeholder = "Enter website address";
             } else {
                 this.urlInput.value = activeTab.url;
                 this.urlInput.placeholder = "Enter website URL";
@@ -222,10 +222,10 @@ class Browser {
             url = 'https://' + url;
         }
         
-        // Handle search queries
+        // Handle search queries (use DuckDuckGo instead of Google)
         if (url.includes(' ')) {
             const searchQuery = encodeURIComponent(url);
-            url = `https://google.com/search?q=${searchQuery}`;
+            url = `https://duckduckgo.com/?q=${searchQuery}`;
         }
         
         tab.url = url;
@@ -253,7 +253,7 @@ class Browser {
         this.updateNavButtons();
         
         // Auto-hide loading after timeout
-        setTimeout(() => this.hideLoading(), 3000);
+        setTimeout(() => this.hideLoading(), 5000);
     }
     
     extractDomain(url) {
@@ -309,7 +309,7 @@ class Browser {
             }
             activeTab.content.innerHTML = this.createNewTabPage();
             this.urlInput.value = '';
-            this.urlInput.placeholder = "Search or enter website name";
+            this.urlInput.placeholder = "Enter website address";
             activeTab.history = [];
             activeTab.historyIndex = -1;
             this.updateNavButtons();
