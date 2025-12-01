@@ -164,16 +164,11 @@ class Browser {
         return `
             <div class="new-tab-page">
                 <div class="new-tab-logo">/Purge</div>
-                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Full Web Proxy</p>
+                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Secure Web Proxy</p>
                 <div class="new-tab-search">
                     <input type="text" class="new-tab-input" placeholder="Enter website address or search query">
                 </div>
                 <div class="quick-links">
-                    <div class="quick-link" data-url="https://orteil.dashnet.org/cookieclicker/">
-                        <i class="fas fa-cookie"></i>
-                        <div class="quick-link-title">Cookie Clicker</div>
-                        <div class="quick-link-desc">Test Game</div>
-                    </div>
                     <div class="quick-link" data-url="https://duckduckgo.com">
                         <i class="fas fa-search"></i>
                         <div class="quick-link-title">DuckDuckGo</div>
@@ -194,16 +189,21 @@ class Browser {
                         <div class="quick-link-title">Wikipedia</div>
                         <div class="quick-link-desc">Encyclopedia</div>
                     </div>
+                    <div class="quick-link" data-url="https://reddit.com">
+                        <i class="fab fa-reddit"></i>
+                        <div class="quick-link-title">Reddit</div>
+                        <div class="quick-link-desc">Community</div>
+                    </div>
                     <div class="quick-link" data-url="https://discord.com">
                         <i class="fab fa-discord"></i>
                         <div class="quick-link-title">Discord</div>
                         <div class="quick-link-desc">Chat</div>
                     </div>
                 </div>
-                <div class="proxy-info" style="margin-top: 2rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px;">
-                    <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Search Tips:</strong></p>
+                <div class="proxy-info" style="margin-top: 2rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px; max-width: 600px;">
+                    <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Usage Tips:</strong></p>
                     <ul style="color: var(--text); text-align: left; display: inline-block; margin: 0;">
-                        <li>Enter any URL to visit websites</li>
+                        <li>Enter any URL to visit websites through the proxy</li>
                         <li>Type search terms to search via DuckDuckGo</li>
                         <li>Proxy Server: wss://lichology.com/wisp/</li>
                     </ul>
@@ -213,11 +213,14 @@ class Browser {
     }
     
     getProxyUrl(url) {
-        // Use your Wisp server
+        // Use your Wisp server with the proper format
+        // Most Wisp proxies accept URLs in this format
         const encodedUrl = encodeURIComponent(url);
         return `https://wisp.ilnk.info/proxy?url=${encodedUrl}`;
-        // Alternative format if needed:
+        
+        // Alternative formats to try if the above doesn't work:
         // return `https://wisp.ilnk.info/proxy/${encodedUrl}`;
+        // return `https://wisp.ilnk.info/${encodedUrl}`;
     }
     
     switchToTab(tabId) {
@@ -228,7 +231,7 @@ class Browser {
         const activeTab = this.tabs.find(tab => tab.id === tabId);
         if (activeTab) {
             if (activeTab.content) activeTab.content.classList.add('active');
-            if (activeTab.element) activeTab.element.classList.add('active');
+            if (activeTab.element) tab.element.classList.add('active');
         }
         this.activeTabId = tabId;
         if (activeTab) {
@@ -274,9 +277,9 @@ class Browser {
         if (!tab || !url) return;
         this.showLoading();
         
-        // Check if it's a search query (contains spaces or is not a valid URL)
+        // Check if it's a search query (contains spaces or looks like search terms)
         const isSearchQuery = url.includes(' ') || 
-                             (!url.includes('.') && !url.startsWith('http://') && !url.startsWith('https://'));
+                             (url.split('.').length < 2 && !url.startsWith('http://') && !url.startsWith('https://'));
         
         if (isSearchQuery) {
             // Auto-use DuckDuckGo for search queries
@@ -297,43 +300,13 @@ class Browser {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
-        // Set up iframe with error handling
-        const setupIframe = () => {
-            const frame = document.getElementById(`frame-${tabId}`);
-            if (frame) {
-                frame.onload = () => {
-                    this.hideLoading();
-                    // Check for common error pages
-                    try {
-                        const frameDoc = frame.contentDocument || frame.contentWindow.document;
-                        if (frameDoc.body && (
-                            frameDoc.body.innerText.includes('Cloudflare') ||
-                            frameDoc.body.innerText.includes('Direct IP access') ||
-                            frameDoc.body.innerText.includes('Error 1003')
-                        )) {
-                            this.showError(tabId, 'Website blocked by Cloudflare. Try a different site or wait a few minutes.');
-                        }
-                    } catch (e) {
-                        // Cross-origin restriction, assume it loaded fine
-                    }
-                };
-                
-                frame.onerror = () => {
-                    this.hideLoading();
-                    this.showError(tabId, 'Failed to load page. The website might be blocking proxy access.');
-                };
-            }
-        };
-        
         // Replace new tab page with iframe if needed
         if (tab.content.querySelector('.new-tab-page')) {
             tab.content.innerHTML = `<iframe class="browser-frame" id="frame-${tabId}" src="${this.getProxyUrl(url)}"></iframe>`;
-            setTimeout(setupIframe, 100);
         } else {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.src = this.getProxyUrl(url);
-                setupIframe();
             }
         }
         
@@ -344,37 +317,7 @@ class Browser {
         this.updateNavButtons();
         
         // Auto-hide loading after timeout
-        setTimeout(() => this.hideLoading(), 8000);
-    }
-    
-    showError(tabId, message) {
-        const tab = this.tabs.find(tab => tab.id === tabId);
-        if (tab && tab.content) {
-            tab.content.innerHTML = `
-                <div class="new-tab-page">
-                    <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
-                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">🚫 Proxy Error</p>
-                    <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
-                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-                        <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Try these solutions:</strong></p>
-                        <ul style="color: var(--text); text-align: left; display: inline-block;">
-                            <li>Wait a few minutes and try again</li>
-                            <li>Try a different website</li>
-                            <li>The site might be blocking proxy access</li>
-                            <li>Search queries automatically use DuckDuckGo</li>
-                        </ul>
-                    </div>
-                    <div style="margin-top: 1rem;">
-                        <button class="go-btn" onclick="window.browser?.refresh()" style="margin-right: 0.5rem;">
-                            <i class="fas fa-redo"></i> Retry
-                        </button>
-                        <button class="go-btn" onclick="window.browser?.goHome()" style="background: var(--background);">
-                            <i class="fas fa-home"></i> Home
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
+        setTimeout(() => this.hideLoading(), 3000);
     }
     
     extractDomain(url) {
@@ -382,7 +325,7 @@ class Browser {
             const domain = new URL(url).hostname;
             return domain.replace('www.', '').substring(0, 20) + (domain.length > 20 ? '...' : '');
         } catch {
-            // Check if it's a search query
+            // Check if it's a DuckDuckGo search
             if (url.includes('duckduckgo.com')) {
                 return 'DuckDuckGo Search';
             }
