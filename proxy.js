@@ -222,10 +222,10 @@ class Browser {
             url = 'https://' + url;
         }
         
-        // Handle search queries (use DuckDuckGo instead of Google)
+        // Handle search queries (use DuckDuckGo which is more proxy-friendly)
         if (url.includes(' ')) {
             const searchQuery = encodeURIComponent(url);
-            url = `https://duckduckgo.com/?q=${searchQuery}`;
+            url = `https://duckduckgo.com/html/?q=${searchQuery}`;
         }
         
         tab.url = url;
@@ -236,13 +236,43 @@ class Browser {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
+        // Set up iframe with error handling
+        const setupIframe = () => {
+            const frame = document.getElementById(`frame-${tabId}`);
+            if (frame) {
+                frame.onload = () => {
+                    this.hideLoading();
+                    // Check for common error pages
+                    try {
+                        const frameDoc = frame.contentDocument || frame.contentWindow.document;
+                        if (frameDoc.body && (
+                            frameDoc.body.innerText.includes('Cloudflare') ||
+                            frameDoc.body.innerText.includes('Direct IP access') ||
+                            frameDoc.body.innerText.includes('Error 1003')
+                        )) {
+                            this.showError(tabId, 'Website blocked by Cloudflare. Try a different site or wait a few minutes.');
+                        }
+                    } catch (e) {
+                        // Cross-origin restriction, assume it loaded fine
+                    }
+                };
+                
+                frame.onerror = () => {
+                    this.hideLoading();
+                    this.showError(tabId, 'Failed to load page. The website might be blocking proxy access.');
+                };
+            }
+        };
+        
         // Replace new tab page with iframe if needed
         if (tab.content.querySelector('.new-tab-page')) {
             tab.content.innerHTML = `<iframe class="browser-frame" id="frame-${tabId}" src="${this.getProxyUrl(url)}"></iframe>`;
+            setTimeout(setupIframe, 100);
         } else {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.src = this.getProxyUrl(url);
+                setupIframe();
             }
         }
         
@@ -253,7 +283,32 @@ class Browser {
         this.updateNavButtons();
         
         // Auto-hide loading after timeout
-        setTimeout(() => this.hideLoading(), 5000);
+        setTimeout(() => this.hideLoading(), 8000);
+    }
+    
+    showError(tabId, message) {
+        const tab = this.tabs.find(tab => tab.id === tabId);
+        if (tab && tab.content) {
+            tab.content.innerHTML = `
+                <div class="new-tab-page">
+                    <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
+                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">🚫 Proxy Error</p>
+                    <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                        <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Try these solutions:</strong></p>
+                        <ul style="color: var(--text); text-align: left; display: inline-block;">
+                            <li>Wait a few minutes and try again</li>
+                            <li>Try a different website</li>
+                            <li>Use DuckDuckGo for search instead of Google</li>
+                            <li>The site might be blocking proxy access</li>
+                        </ul>
+                    </div>
+                    <button class="go-btn" onclick="window.location.reload()" style="margin-top: 1rem;">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
     }
     
     extractDomain(url) {
