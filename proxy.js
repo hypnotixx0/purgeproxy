@@ -8,19 +8,31 @@ class Browser {
         this.urlInput = document.getElementById('url-input');
         this.loadingIndicator = document.getElementById('loading-indicator');
         
-        // Scramjet proxy domains (from your examples)
-        this.scramjetDomains = [
-            'https://lunaar.org',
-            'https://kcc.asistdoc.ar',
-            'https://onlineosdev.nl'  // Your original domain
+        // Proxies to try
+        this.proxies = [
+            {
+                name: 'Lunaar Scramjet',
+                url: (encodedUrl) => `https://lunaar.org/scramjet/${encodedUrl}`
+            },
+            {
+                name: 'KCC Scramjet',
+                url: (encodedUrl) => `https://kcc.asistdoc.ar/scramjet/${encodedUrl}`
+            },
+            {
+                name: 'OnlineOSDev',
+                url: (encodedUrl) => `https://onlineosdev.nl/scramjet/${encodedUrl}`
+            }
         ];
-        this.currentDomain = 0;
+        this.currentProxy = 0;
+        
+        this.embedMethods = ['srcdoc', 'object', 'embed', 'iframe'];
+        this.currentMethod = 0;
         
         this.init();
     }
     
     init() {
-        console.log('Initializing Scramjet Proxy Browser...');
+        console.log('Initializing Browser with advanced embedding...');
         
         // Create add tab button
         const addTabBtn = document.createElement('div');
@@ -71,6 +83,22 @@ class Browser {
                 }
             }
         });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+T for new tab
+            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                e.preventDefault();
+                this.createTab();
+            }
+            
+            // Ctrl+L to focus address bar
+            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
+                e.preventDefault();
+                this.urlInput.focus();
+                this.urlInput.select();
+            }
+        });
     }
     
     createTab(url = null) {
@@ -109,8 +137,8 @@ class Browser {
         if (tab.isNewTab) {
             contentElement.innerHTML = this.createNewTabPage();
         } else {
-            const proxyUrl = this.getProxyUrl(tab.url);
-            contentElement.innerHTML = `<iframe class="browser-frame" id="frame-${tab.id}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>`;
+            // Will be filled when loading URL
+            contentElement.innerHTML = '<div class="loading-placeholder">Loading...</div>';
         }
         
         this.tabsBar.insertBefore(tabElement, document.getElementById('add-tab-btn'));
@@ -135,7 +163,7 @@ class Browser {
         return `
             <div class="new-tab-page">
                 <div class="new-tab-logo">/Purge</div>
-                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Scramjet Proxy Browser</p>
+                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Advanced Proxy Browser</p>
                 <div class="new-tab-search">
                     <input type="text" class="new-tab-input" placeholder="Search DuckDuckGo or enter website URL">
                 </div>
@@ -172,26 +200,12 @@ class Browser {
                     </div>
                 </div>
                 <div style="margin-top: 2rem; color: var(--text); font-size: 0.9rem; background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; max-width: 600px;">
-                    <p><strong>Proxy:</strong> Scramjet (${this.scramjetDomains[this.currentDomain]})</p>
-                    <p><strong>Format:</strong> /scramjet/encoded-url</p>
-                    <p><strong>Search:</strong> Queries use DuckDuckGo</p>
+                    <p><strong>Features:</strong> Multiple embedding methods</p>
+                    <p><strong>Proxies:</strong> Scramjet (auto-rotate on failure)</p>
+                    <p><strong>Search:</strong> DuckDuckGo with &ia=web</p>
                 </div>
             </div>
         `;
-    }
-    
-    getProxyUrl(url) {
-        // Encode the URL for Scramjet proxy
-        const encodedUrl = encodeURIComponent(url);
-        
-        // Get current domain
-        const domain = this.scramjetDomains[this.currentDomain];
-        
-        // Scramjet format: https://domain.com/scramjet/encoded-url
-        const proxyUrl = `${domain}/scramjet/${encodedUrl}`;
-        
-        console.log('Scramjet Proxy URL:', proxyUrl);
-        return proxyUrl;
     }
     
     switchToTab(tabId) {
@@ -247,7 +261,7 @@ class Browser {
         }
     }
     
-    loadUrlInTab(tabId, url) {
+    async loadUrlInTab(tabId, url) {
         const tab = this.tabs.find(tab => tab.id === tabId);
         if (!tab || !url) return;
         
@@ -261,17 +275,14 @@ class Browser {
                              (!url.includes('.') && !url.includes('://') && !url.startsWith('http'));
         
         if (isSearchQuery) {
-            // Use DuckDuckGo for searches (with &ia=web parameter)
             const searchQuery = encodeURIComponent(url);
             finalUrl = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
-            console.log('Converted to DuckDuckGo search:', finalUrl);
+            console.log('Converted to search:', finalUrl);
         } else if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-            // Add https:// if missing
             finalUrl = 'https://' + finalUrl;
             console.log('Added protocol:', finalUrl);
         }
         
-        // Update tab info
         tab.url = finalUrl;
         tab.title = this.extractDomain(finalUrl);
         tab.isNewTab = false;
@@ -280,68 +291,255 @@ class Browser {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
-        // Get Scramjet proxy URL
-        const proxyUrl = this.getProxyUrl(finalUrl);
-        console.log('Final Scramjet proxy URL:', proxyUrl);
+        // Try different embedding methods
+        await this.tryEmbedding(tabId, finalUrl, tab);
+    }
+    
+    async tryEmbedding(tabId, finalUrl, tab, proxyIndex = 0, methodIndex = 0) {
+        const proxy = this.proxies[proxyIndex];
+        const method = this.embedMethods[methodIndex];
+        const proxyUrl = proxy.url(encodeURIComponent(finalUrl));
         
-        // Create iframe
-        const iframeHtml = `<iframe class="browser-frame" id="frame-${tabId}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>`;
+        console.log(`Trying ${proxy.name} with ${method} embedding`);
         
-        // Update content
-        if (tab.content.querySelector('.new-tab-page')) {
-            tab.content.innerHTML = iframeHtml;
-        } else {
-            const frame = document.getElementById(`frame-${tabId}`);
-            if (frame) {
-                frame.src = proxyUrl;
+        try {
+            switch(method) {
+                case 'srcdoc':
+                    await this.embedWithSrcdoc(tabId, proxyUrl, tab);
+                    break;
+                case 'object':
+                    await this.embedWithObject(tabId, proxyUrl, tab);
+                    break;
+                case 'embed':
+                    await this.embedWithEmbedTag(tabId, proxyUrl, tab);
+                    break;
+                case 'iframe':
+                    await this.embedWithIframe(tabId, proxyUrl, tab);
+                    break;
+            }
+            
+            // Success
+            this.hideLoading();
+            this.urlInput.value = finalUrl;
+            this.updateHistory(tab, finalUrl);
+            console.log(`Success with ${proxy.name} + ${method}`);
+            
+        } catch (error) {
+            console.error(`${proxy.name} + ${method} failed:`, error);
+            
+            // Try next method or proxy
+            const nextMethodIndex = methodIndex + 1;
+            const nextProxyIndex = (nextMethodIndex >= this.embedMethods.length) ? proxyIndex + 1 : proxyIndex;
+            const nextMethod = (nextMethodIndex >= this.embedMethods.length) ? 0 : nextMethodIndex;
+            
+            if (nextProxyIndex < this.proxies.length) {
+                // Try with next configuration
+                setTimeout(() => {
+                    this.tryEmbedding(tabId, finalUrl, tab, nextProxyIndex, nextMethod);
+                }, 500);
             } else {
-                tab.content.innerHTML = iframeHtml;
+                // All methods failed
+                this.hideLoading();
+                this.showError(tabId, 'All embedding methods failed. The site may block all embedding attempts.');
             }
         }
+    }
+    
+    async embedWithSrcdoc(tabId, proxyUrl, tab) {
+        // Try to fetch with CORS proxy first
+        const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(proxyUrl)}`;
         
-        // Setup iframe handlers
-        setTimeout(() => {
-            const frame = document.getElementById(`frame-${tabId}`);
-            if (frame) {
-                frame.onload = () => {
-                    console.log('Page loaded via Scramjet proxy');
-                    this.hideLoading();
-                };
-                
-                frame.onerror = (error) => {
-                    console.error('Scramjet proxy failed:', error);
-                    this.hideLoading();
-                    
-                    // Try next domain if current fails
-                    this.currentDomain = (this.currentDomain + 1) % this.scramjetDomains.length;
-                    console.log('Switching to domain:', this.scramjetDomains[this.currentDomain]);
-                    
-                    // Retry with new domain
-                    const newProxyUrl = this.getProxyUrl(finalUrl);
-                    frame.src = newProxyUrl;
-                    
-                    // Show loading again for retry
-                    this.showLoading();
-                };
+        try {
+            const response = await fetch(corsProxyUrl, {
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`CORS proxy failed: ${response.status}`);
             }
-        }, 100);
+            
+            const html = await response.text();
+            
+            // Check if page contains embed blocking
+            if (html.toLowerCase().includes('embed') || 
+                html.toLowerCase().includes('x-frame-options') ||
+                html.toLowerCase().includes('skid')) {
+                throw new Error('Page contains embed blocking');
+            }
+            
+            const safeHtml = this.escapeHtml(html);
+            
+            const frameHtml = `
+                <iframe class="browser-frame" 
+                        id="frame-${tabId}" 
+                        srcdoc="${safeHtml}"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                        referrerpolicy="no-referrer"
+                        style="width:100%; height:100%; border:none;">
+                </iframe>
+            `;
+            
+            this.updateTabContent(tab, frameHtml);
+            
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    const frame = document.getElementById(`frame-${tabId}`);
+                    if (frame && frame.contentWindow) {
+                        resolve();
+                    } else {
+                        reject('Frame not loaded');
+                    }
+                }, 2000);
+            });
+            
+        } catch (error) {
+            console.log('srcdoc method failed:', error);
+            throw error;
+        }
+    }
+    
+    embedWithObject(tabId, proxyUrl, tab) {
+        // Object tag (sometimes bypasses restrictions)
+        const objectHtml = `
+            <object class="browser-frame" 
+                    id="frame-${tabId}" 
+                    data="${proxyUrl}"
+                    type="text/html"
+                    style="width:100%; height:100%; border:none;">
+                <p>Your browser does not support objects.</p>
+            </object>
+        `;
         
-        // Update URL bar and history
-        this.urlInput.value = finalUrl;
+        this.updateTabContent(tab, objectHtml);
         
-        // Update history
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                const obj = document.getElementById(`frame-${tabId}`);
+                if (obj) {
+                    resolve();
+                } else {
+                    reject('Object not loaded');
+                }
+            }, 2000);
+        });
+    }
+    
+    embedWithEmbedTag(tabId, proxyUrl, tab) {
+        // Embed tag (alternative to iframe)
+        const embedHtml = `
+            <embed class="browser-frame" 
+                   id="frame-${tabId}" 
+                   src="${proxyUrl}"
+                   type="text/html"
+                   style="width:100%; height:100%;">
+        `;
+        
+        this.updateTabContent(tab, embedHtml);
+        
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                const embed = document.getElementById(`frame-${tabId}`);
+                if (embed) {
+                    resolve();
+                } else {
+                    reject('Embed not loaded');
+                }
+            }, 2000);
+        });
+    }
+    
+    embedWithIframe(tabId, proxyUrl, tab) {
+        // Regular iframe with different attributes
+        const iframeHtml = `
+            <iframe class="browser-frame" 
+                    id="frame-${tabId}" 
+                    src="${proxyUrl}"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+                    referrerpolicy="no-referrer"
+                    frameborder="0"
+                    scrolling="auto"
+                    allow="fullscreen *"
+                    style="width:100%; height:100%; border:none;">
+            </iframe>
+        `;
+        
+        this.updateTabContent(tab, iframeHtml);
+        
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                const frame = document.getElementById(`frame-${tabId}`);
+                if (frame && frame.contentWindow) {
+                    resolve();
+                } else {
+                    reject('Iframe not loaded');
+                }
+            }, 2000);
+        });
+    }
+    
+    updateTabContent(tab, html) {
+        if (tab.content.querySelector('.new-tab-page') || tab.content.querySelector('.loading-placeholder')) {
+            tab.content.innerHTML = html;
+        } else {
+            const frame = document.getElementById(`frame-${tab.id}`);
+            if (frame) {
+                frame.outerHTML = html;
+            } else {
+                tab.content.innerHTML = html;
+            }
+        }
+    }
+    
+    escapeHtml(html) {
+        const div = document.createElement('div');
+        div.textContent = html;
+        return div.innerHTML
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            .replace(/`/g, '&#096;')
+            .replace(/\n/g, ' ')
+            .replace(/\s+/g, ' ');
+    }
+    
+    updateHistory(tab, finalUrl) {
         if (tab.historyIndex === -1 || tab.history[tab.historyIndex] !== finalUrl) {
             tab.history = tab.history.slice(0, tab.historyIndex + 1);
             tab.history.push(finalUrl);
             tab.historyIndex = tab.history.length - 1;
         }
-        
         this.updateNavButtons();
-        
-        // Auto-hide loading after timeout
-        setTimeout(() => {
-            this.hideLoading();
-        }, 10000);
+    }
+    
+    showError(tabId, message) {
+        const tab = this.tabs.find(tab => tab.id === tabId);
+        if (tab && tab.content) {
+            tab.content.innerHTML = `
+                <div class="new-tab-page">
+                    <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
+                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">Embedding Failed</p>
+                    <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0; max-width: 500px;">
+                        <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Try:</strong></p>
+                        <ul style="color: var(--text); text-align: left; display: inline-block;">
+                            <li>Refresh the page</li>
+                            <li>Try a different website</li>
+                            <li>Check if the site blocks embedding</li>
+                        </ul>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="go-btn" onclick="window.browser.refresh()">
+                            <i class="fas fa-redo"></i> Try Again
+                        </button>
+                        <button class="go-btn" onclick="window.browser.goHome()" style="background: var(--background); margin-left: 0.5rem;">
+                            <i class="fas fa-home"></i> Home
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
     }
     
     extractDomain(url) {
@@ -433,5 +631,5 @@ class Browser {
 // Initialize browser
 document.addEventListener('DOMContentLoaded', () => {
     window.browser = new Browser();
-    console.log('Scramjet Proxy Browser ready');
+    console.log('Advanced Embedding Browser ready');
 });
