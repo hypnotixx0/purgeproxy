@@ -7,6 +7,16 @@ class Browser {
         this.contentArea = document.getElementById('content-area');
         this.urlInput = document.getElementById('url-input');
         this.loadingIndicator = document.getElementById('loading-indicator');
+        
+        // Wisp HTTP gateways (convert wss:// to https:// for iframes)
+        this.wispGateways = [
+            'https://wisp.projectsegfau.lt/',  // Most reliable
+            'https://wisp.voaxz.workers.dev/',  // Good backup
+            'https://wisp.isthe.link/',         // Another option
+            'https://wisp.ilnk.info/'           // Alternative
+        ];
+        this.currentGateway = 0;
+        
         this.init();
     }
     
@@ -58,6 +68,22 @@ class Browser {
                 if (activeTab && url) {
                     this.loadUrlInTab(activeTab.id, url);
                 }
+            }
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+T for new tab
+            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                e.preventDefault();
+                this.createTab();
+            }
+            
+            // Ctrl+L to focus address bar
+            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
+                e.preventDefault();
+                this.urlInput.focus();
+                this.urlInput.select();
             }
         });
     }
@@ -136,7 +162,7 @@ class Browser {
                     <div class="quick-link" data-url="https://duckduckgo.com">
                         <i class="fas fa-search"></i>
                         <div class="quick-link-title">DuckDuckGo</div>
-                        <div class="quick-link-desc">Search</div>
+                        <div class="quick-link-desc">Search Engine</div>
                     </div>
                     <div class="quick-link" data-url="https://youtube.com">
                         <i class="fab fa-youtube"></i>
@@ -165,34 +191,23 @@ class Browser {
                     </div>
                 </div>
                 <div style="margin-top: 2rem; color: var(--text); font-size: 0.9rem; background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; max-width: 600px;">
-                    <p><strong>Tip:</strong> Search queries automatically use DuckDuckGo</p>
-                    <p><strong>Proxy:</strong> wss://onlineosdev.nl/ (Wisp)</p>
+                    <p><strong>Using Wisp Proxy:</strong> Automatic gateway rotation</p>
+                    <p><strong>Search:</strong> Queries use DuckDuckGo</p>
                 </div>
             </div>
         `;
     }
     
     getProxyUrl(url) {
-        // Based on Ethereal's implementation - Wisp proxy gateway
-        // Encode the URL for the proxy
+        // Encode URL for Wisp gateway
         const encodedUrl = encodeURIComponent(url);
         
-        // Try different Wisp gateway formats (similar to Ethereal):
+        // Use current gateway
+        const gateway = this.wispGateways[this.currentGateway];
+        const proxyUrl = `${gateway}${encodedUrl}`;
         
-        // Format 1: Most common Wisp gateway
-        // return `https://wisp.ilnk.info/${encodedUrl}`;
-        
-        // Format 2: Alternative gateway (often works better)
-        // return `https://wisp.projectsegfau.lt/${encodedUrl}`;
-        
-        // Format 3: Direct format
-        return `https://wisp.voaxz.workers.dev/${encodedUrl}`;
-        
-        // Format 4: Another working gateway
-        // return `https://wisp.isthe.link/${encodedUrl}`;
-        
-        // Format 5: For testing - remove proxy
-        // return url;
+        console.log('Wisp Proxy URL:', proxyUrl);
+        return proxyUrl;
     }
     
     switchToTab(tabId) {
@@ -211,7 +226,6 @@ class Browser {
             
             // Update URL input
             this.urlInput.value = activeTab.url || '';
-            this.urlInput.placeholder = "Search DuckDuckGo or enter website URL";
         }
         
         this.updateNavButtons();
@@ -250,19 +264,15 @@ class Browser {
         const activeTab = this.getActiveTab();
         
         if (activeTab && url) {
-            console.log('Browser: Navigating to', url);
+            console.log('Navigating to:', url);
             this.loadUrlInTab(activeTab.id, url);
         }
     }
     
     loadUrlInTab(tabId, url) {
         const tab = this.tabs.find(tab => tab.id === tabId);
-        if (!tab || !url) {
-            console.log('Browser: No tab or URL');
-            return;
-        }
+        if (!tab || !url) return;
         
-        console.log('Browser: Loading URL in tab', tabId, url);
         this.showLoading();
         
         // Process URL
@@ -272,17 +282,15 @@ class Browser {
         const isSearchQuery = url.includes(' ') || 
                              (!url.includes('.') && !url.includes('://') && !url.startsWith('http'));
         
-        console.log('Browser: Is search query?', isSearchQuery);
-        
         if (isSearchQuery) {
-            // Convert to DuckDuckGo search (correct format)
+            // Convert to DuckDuckGo search
             const searchQuery = encodeURIComponent(url);
             finalUrl = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
-            console.log('Browser: Converted to DuckDuckGo search', finalUrl);
+            console.log('Converted to DuckDuckGo search:', finalUrl);
         } else if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
             // Add https:// if missing
             finalUrl = 'https://' + finalUrl;
-            console.log('Browser: Added https://', finalUrl);
+            console.log('Added https://:', finalUrl);
         }
         
         // Update tab info
@@ -296,28 +304,20 @@ class Browser {
         
         // Get proxy URL
         const proxyUrl = this.getProxyUrl(finalUrl);
-        console.log('Browser: Proxy URL', proxyUrl);
+        console.log('Final proxy URL:', proxyUrl);
         
         // Create iframe HTML
         const iframeHtml = `<iframe class="browser-frame" id="frame-${tabId}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>`;
         
-        // Check if we need to replace new tab page or update existing iframe
-        const hasNewTabPage = tab.content.querySelector('.new-tab-page');
-        console.log('Browser: Has new tab page?', hasNewTabPage);
-        
-        if (hasNewTabPage) {
-            // Replace new tab page with iframe
+        // Update or create content
+        if (tab.content.querySelector('.new-tab-page')) {
             tab.content.innerHTML = iframeHtml;
-            console.log('Browser: Replaced new tab page with iframe');
         } else {
-            // Update existing iframe or create new one
-            const existingFrame = document.getElementById(`frame-${tabId}`);
-            if (existingFrame) {
-                existingFrame.src = proxyUrl;
-                console.log('Browser: Updated existing iframe src');
+            const frame = document.getElementById(`frame-${tabId}`);
+            if (frame) {
+                frame.src = proxyUrl;
             } else {
                 tab.content.innerHTML = iframeHtml;
-                console.log('Browser: Created new iframe');
             }
         }
         
@@ -326,18 +326,23 @@ class Browser {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.onload = () => {
-                    console.log('Browser: Iframe loaded successfully');
+                    console.log('Page loaded successfully');
                     this.hideLoading();
                 };
                 
-                frame.onerror = (error) => {
-                    console.error('Browser: Iframe error', error);
-                    this.hideLoading();
-                    this.showError(tabId, 'Failed to load. The site may block proxy access.');
+                frame.onerror = () => {
+                    console.error('Iframe failed to load, trying next gateway...');
+                    
+                    // Try next gateway
+                    this.currentGateway = (this.currentGateway + 1) % this.wispGateways.length;
+                    console.log('Switching to gateway:', this.wispGateways[this.currentGateway]);
+                    
+                    // Retry with new gateway
+                    const newProxyUrl = this.getProxyUrl(finalUrl);
+                    frame.src = newProxyUrl;
+                    
+                    // Don't hide loading - let retry happen
                 };
-            } else {
-                console.error('Browser: Iframe not found after creation');
-                this.hideLoading();
             }
         }, 100);
         
@@ -355,31 +360,23 @@ class Browser {
         
         // Auto-hide loading after timeout
         setTimeout(() => {
-            console.log('Browser: Auto-hiding loading indicator');
+            console.log('Auto-hiding loading indicator');
             this.hideLoading();
-        }, 8000);
+        }, 10000);
     }
     
     showError(tabId, message) {
-        console.log('Browser: Showing error', message);
+        console.log('Showing error:', message);
         const tab = this.tabs.find(tab => tab.id === tabId);
         if (tab && tab.content) {
             tab.content.innerHTML = `
                 <div class="new-tab-page">
                     <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
-                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">🚫 Error</p>
+                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">Error Loading Page</p>
                     <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
-                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem 0; max-width: 500px;">
-                        <p style="color: var(--text); margin-bottom: 0.5rem;"><strong>Try:</strong></p>
-                        <ul style="color: var(--text); text-align: left; display: inline-block;">
-                            <li>Refresh the page</li>
-                            <li>Try a different website</li>
-                            <li>Check the browser console for details</li>
-                        </ul>
-                    </div>
                     <div style="margin-top: 1rem;">
                         <button class="go-btn" onclick="window.browser.refresh()">
-                            <i class="fas fa-redo"></i> Refresh
+                            <i class="fas fa-redo"></i> Try Again
                         </button>
                         <button class="go-btn" onclick="window.browser.goHome()" style="background: var(--background); margin-left: 0.5rem;">
                             <i class="fas fa-home"></i> Home
@@ -407,7 +404,7 @@ class Browser {
             
             return domain;
         } catch (e) {
-            console.log('Browser: Error extracting domain from', url, e);
+            console.log('Error extracting domain:', e);
             if (url.includes('duckduckgo.com')) {
                 return 'DuckDuckGo';
             }
@@ -416,17 +413,14 @@ class Browser {
     }
     
     showLoading() {
-        console.log('Browser: Showing loading indicator');
         this.loadingIndicator.classList.add('loading');
     }
     
     hideLoading() {
-        console.log('Browser: Hiding loading indicator');
         this.loadingIndicator.classList.remove('loading');
     }
     
     goBack() {
-        console.log('Browser: Going back');
         const activeTab = this.getActiveTab();
         if (activeTab && activeTab.historyIndex > 0) {
             activeTab.historyIndex--;
@@ -436,7 +430,6 @@ class Browser {
     }
     
     goForward() {
-        console.log('Browser: Going forward');
         const activeTab = this.getActiveTab();
         if (activeTab && activeTab.historyIndex < activeTab.history.length - 1) {
             activeTab.historyIndex++;
@@ -446,17 +439,13 @@ class Browser {
     }
     
     refresh() {
-        console.log('Browser: Refreshing');
         const activeTab = this.getActiveTab();
         if (activeTab && activeTab.url) {
             this.loadUrlInTab(activeTab.id, activeTab.url);
-        } else {
-            this.goHome();
         }
     }
     
     goHome() {
-        console.log('Browser: Going home');
         const activeTab = this.getActiveTab();
         if (activeTab) {
             // Clear tab
@@ -474,7 +463,6 @@ class Browser {
             
             // Clear URL input
             this.urlInput.value = '';
-            this.urlInput.placeholder = "Search DuckDuckGo or enter website URL";
             
             // Clear history
             activeTab.history = [];
@@ -492,15 +480,13 @@ class Browser {
             
             document.getElementById('back-btn').disabled = !canGoBack;
             document.getElementById('forward-btn').disabled = !canGoForward;
-            
-            console.log('Browser: Nav buttons - Back:', canGoBack, 'Forward:', canGoForward);
         }
     }
 }
 
 // Initialize browser when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing browser...');
+    console.log('Initializing /Purge Proxy Browser...');
     window.browser = new Browser();
-    console.log('Browser initialized');
+    console.log('Browser ready. Wisp gateways loaded:', window.browser.wispGateways.length);
 });
