@@ -8,19 +8,20 @@ class Browser {
         this.urlInput = document.getElementById('url-input');
         this.loadingIndicator = document.getElementById('loading-indicator');
         
-        // Wisp HTTP gateways (convert wss:// to https:// for iframes)
-        this.wispGateways = [
-            'https://wisp.projectsegfau.lt/',  // Most reliable
-            'https://wisp.voaxz.workers.dev/',  // Good backup
-            'https://wisp.isthe.link/',         // Another option
-            'https://wisp.ilnk.info/'           // Alternative
+        // Scramjet proxy domains (from your examples)
+        this.scramjetDomains = [
+            'https://lunaar.org',
+            'https://kcc.asistdoc.ar',
+            'https://onlineosdev.nl'  // Your original domain
         ];
-        this.currentGateway = 0;
+        this.currentDomain = 0;
         
         this.init();
     }
     
     init() {
+        console.log('Initializing Scramjet Proxy Browser...');
+        
         // Create add tab button
         const addTabBtn = document.createElement('div');
         addTabBtn.className = 'add-tab';
@@ -70,22 +71,6 @@ class Browser {
                 }
             }
         });
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            // Ctrl+T for new tab
-            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-                e.preventDefault();
-                this.createTab();
-            }
-            
-            // Ctrl+L to focus address bar
-            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
-                e.preventDefault();
-                this.urlInput.focus();
-                this.urlInput.select();
-            }
-        });
     }
     
     createTab(url = null) {
@@ -117,7 +102,6 @@ class Browser {
             <button class="tab-close"><i class="fas fa-times"></i></button>
         `;
         
-        // Create content element
         const contentElement = document.createElement('div');
         contentElement.className = 'browser-frame-container';
         contentElement.id = `tab-content-${tab.id}`;
@@ -129,11 +113,9 @@ class Browser {
             contentElement.innerHTML = `<iframe class="browser-frame" id="frame-${tab.id}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>`;
         }
         
-        // Add to DOM
         this.tabsBar.insertBefore(tabElement, document.getElementById('add-tab-btn'));
         this.contentArea.appendChild(contentElement);
         
-        // Add event listeners
         tabElement.addEventListener('click', (e) => {
             if (!e.target.closest('.tab-close')) {
                 this.switchToTab(tab.id);
@@ -145,7 +127,6 @@ class Browser {
             this.closeTab(tab.id);
         });
         
-        // Store references
         tab.element = tabElement;
         tab.content = contentElement;
     }
@@ -154,7 +135,7 @@ class Browser {
         return `
             <div class="new-tab-page">
                 <div class="new-tab-logo">/Purge</div>
-                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Web Proxy Browser</p>
+                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Scramjet Proxy Browser</p>
                 <div class="new-tab-search">
                     <input type="text" class="new-tab-input" placeholder="Search DuckDuckGo or enter website URL">
                 </div>
@@ -191,7 +172,8 @@ class Browser {
                     </div>
                 </div>
                 <div style="margin-top: 2rem; color: var(--text); font-size: 0.9rem; background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 8px; max-width: 600px;">
-                    <p><strong>Using Wisp Proxy:</strong> Automatic gateway rotation</p>
+                    <p><strong>Proxy:</strong> Scramjet (${this.scramjetDomains[this.currentDomain]})</p>
+                    <p><strong>Format:</strong> /scramjet/encoded-url</p>
                     <p><strong>Search:</strong> Queries use DuckDuckGo</p>
                 </div>
             </div>
@@ -199,32 +181,31 @@ class Browser {
     }
     
     getProxyUrl(url) {
-        // Encode URL for Wisp gateway
+        // Encode the URL for Scramjet proxy
         const encodedUrl = encodeURIComponent(url);
         
-        // Use current gateway
-        const gateway = this.wispGateways[this.currentGateway];
-        const proxyUrl = `${gateway}${encodedUrl}`;
+        // Get current domain
+        const domain = this.scramjetDomains[this.currentDomain];
         
-        console.log('Wisp Proxy URL:', proxyUrl);
+        // Scramjet format: https://domain.com/scramjet/encoded-url
+        const proxyUrl = `${domain}/scramjet/${encodedUrl}`;
+        
+        console.log('Scramjet Proxy URL:', proxyUrl);
         return proxyUrl;
     }
     
     switchToTab(tabId) {
-        // Hide all tabs
         this.tabs.forEach(tab => {
             if (tab.content) tab.content.classList.remove('active');
             if (tab.element) tab.element.classList.remove('active');
         });
         
-        // Show active tab
         const activeTab = this.tabs.find(tab => tab.id === tabId);
         if (activeTab) {
             if (activeTab.content) activeTab.content.classList.add('active');
             if (activeTab.element) activeTab.element.classList.add('active');
             this.activeTabId = tabId;
             
-            // Update URL input
             this.urlInput.value = activeTab.url || '';
         }
         
@@ -239,14 +220,11 @@ class Browser {
         
         const tab = this.tabs[tabIndex];
         
-        // Remove elements
         if (tab.element) tab.element.remove();
         if (tab.content) tab.content.remove();
         
-        // Remove from array
         this.tabs.splice(tabIndex, 1);
         
-        // Switch to another tab
         if (this.activeTabId === tabId) {
             const newActiveTab = this.tabs[Math.max(0, tabIndex - 1)];
             if (newActiveTab) {
@@ -278,19 +256,19 @@ class Browser {
         // Process URL
         let finalUrl = url.trim();
         
-        // Check if it's a search query
+        // Handle search queries
         const isSearchQuery = url.includes(' ') || 
                              (!url.includes('.') && !url.includes('://') && !url.startsWith('http'));
         
         if (isSearchQuery) {
-            // Convert to DuckDuckGo search
+            // Use DuckDuckGo for searches (with &ia=web parameter)
             const searchQuery = encodeURIComponent(url);
             finalUrl = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
             console.log('Converted to DuckDuckGo search:', finalUrl);
         } else if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
             // Add https:// if missing
             finalUrl = 'https://' + finalUrl;
-            console.log('Added https://:', finalUrl);
+            console.log('Added protocol:', finalUrl);
         }
         
         // Update tab info
@@ -302,14 +280,14 @@ class Browser {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
-        // Get proxy URL
+        // Get Scramjet proxy URL
         const proxyUrl = this.getProxyUrl(finalUrl);
-        console.log('Final proxy URL:', proxyUrl);
+        console.log('Final Scramjet proxy URL:', proxyUrl);
         
-        // Create iframe HTML
+        // Create iframe
         const iframeHtml = `<iframe class="browser-frame" id="frame-${tabId}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" referrerpolicy="no-referrer"></iframe>`;
         
-        // Update or create content
+        // Update content
         if (tab.content.querySelector('.new-tab-page')) {
             tab.content.innerHTML = iframeHtml;
         } else {
@@ -321,32 +299,34 @@ class Browser {
             }
         }
         
-        // Setup iframe load/error handlers
+        // Setup iframe handlers
         setTimeout(() => {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.onload = () => {
-                    console.log('Page loaded successfully');
+                    console.log('Page loaded via Scramjet proxy');
                     this.hideLoading();
                 };
                 
-                frame.onerror = () => {
-                    console.error('Iframe failed to load, trying next gateway...');
+                frame.onerror = (error) => {
+                    console.error('Scramjet proxy failed:', error);
+                    this.hideLoading();
                     
-                    // Try next gateway
-                    this.currentGateway = (this.currentGateway + 1) % this.wispGateways.length;
-                    console.log('Switching to gateway:', this.wispGateways[this.currentGateway]);
+                    // Try next domain if current fails
+                    this.currentDomain = (this.currentDomain + 1) % this.scramjetDomains.length;
+                    console.log('Switching to domain:', this.scramjetDomains[this.currentDomain]);
                     
-                    // Retry with new gateway
+                    // Retry with new domain
                     const newProxyUrl = this.getProxyUrl(finalUrl);
                     frame.src = newProxyUrl;
                     
-                    // Don't hide loading - let retry happen
+                    // Show loading again for retry
+                    this.showLoading();
                 };
             }
         }, 100);
         
-        // Update URL input and history
+        // Update URL bar and history
         this.urlInput.value = finalUrl;
         
         // Update history
@@ -360,31 +340,8 @@ class Browser {
         
         // Auto-hide loading after timeout
         setTimeout(() => {
-            console.log('Auto-hiding loading indicator');
             this.hideLoading();
         }, 10000);
-    }
-    
-    showError(tabId, message) {
-        console.log('Showing error:', message);
-        const tab = this.tabs.find(tab => tab.id === tabId);
-        if (tab && tab.content) {
-            tab.content.innerHTML = `
-                <div class="new-tab-page">
-                    <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
-                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">Error Loading Page</p>
-                    <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
-                    <div style="margin-top: 1rem;">
-                        <button class="go-btn" onclick="window.browser.refresh()">
-                            <i class="fas fa-redo"></i> Try Again
-                        </button>
-                        <button class="go-btn" onclick="window.browser.goHome()" style="background: var(--background); margin-left: 0.5rem;">
-                            <i class="fas fa-home"></i> Home
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
     }
     
     extractDomain(url) {
@@ -404,7 +361,6 @@ class Browser {
             
             return domain;
         } catch (e) {
-            console.log('Error extracting domain:', e);
             if (url.includes('duckduckgo.com')) {
                 return 'DuckDuckGo';
             }
@@ -448,26 +404,19 @@ class Browser {
     goHome() {
         const activeTab = this.getActiveTab();
         if (activeTab) {
-            // Clear tab
             activeTab.url = null;
             activeTab.title = 'New Tab';
             activeTab.isNewTab = true;
             
-            // Update tab element
             if (activeTab.element) {
                 activeTab.element.querySelector('.tab-title').textContent = 'New Tab';
             }
             
-            // Show new tab page
             activeTab.content.innerHTML = this.createNewTabPage();
-            
-            // Clear URL input
             this.urlInput.value = '';
             
-            // Clear history
             activeTab.history = [];
             activeTab.historyIndex = -1;
-            
             this.updateNavButtons();
         }
     }
@@ -475,18 +424,14 @@ class Browser {
     updateNavButtons() {
         const activeTab = this.getActiveTab();
         if (activeTab) {
-            const canGoBack = activeTab.historyIndex > 0;
-            const canGoForward = activeTab.historyIndex < activeTab.history.length - 1;
-            
-            document.getElementById('back-btn').disabled = !canGoBack;
-            document.getElementById('forward-btn').disabled = !canGoForward;
+            document.getElementById('back-btn').disabled = activeTab.historyIndex <= 0;
+            document.getElementById('forward-btn').disabled = activeTab.historyIndex >= activeTab.history.length - 1;
         }
     }
 }
 
-// Initialize browser when page loads
+// Initialize browser
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Initializing /Purge Proxy Browser...');
     window.browser = new Browser();
-    console.log('Browser ready. Wisp gateways loaded:', window.browser.wispGateways.length);
+    console.log('Scramjet Proxy Browser ready');
 });
