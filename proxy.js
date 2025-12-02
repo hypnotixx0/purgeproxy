@@ -11,6 +11,7 @@ class Browser {
     }
     
     init() {
+        // Create add tab button
         const addTabBtn = document.createElement('div');
         addTabBtn.className = 'add-tab';
         addTabBtn.id = 'add-tab-btn';
@@ -18,9 +19,12 @@ class Browser {
         addTabBtn.addEventListener('click', () => this.createTab());
         this.tabsBar.appendChild(addTabBtn);
         
+        // Create first tab
         this.createTab();
         
+        // Setup event listeners
         document.getElementById('go-btn').addEventListener('click', () => this.navigate());
+        
         this.urlInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.navigate();
         });
@@ -34,6 +38,7 @@ class Browser {
     }
     
     setupGlobalListeners() {
+        // Handle quick link clicks
         document.addEventListener('click', (e) => {
             const quickLink = e.target.closest('.quick-link');
             if (quickLink) {
@@ -46,6 +51,7 @@ class Browser {
             }
         });
         
+        // Handle new tab page search
         document.addEventListener('keypress', (e) => {
             if (e.target.classList.contains('new-tab-input') && e.key === 'Enter') {
                 const url = e.target.value.trim();
@@ -53,6 +59,22 @@ class Browser {
                 if (activeTab && url) {
                     this.loadUrlInTab(activeTab.id, url);
                 }
+            }
+        });
+        
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+T or Cmd+T for new tab
+            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                e.preventDefault();
+                this.createTab();
+            }
+            
+            // Ctrl+L or Alt+D to focus address bar
+            if ((e.ctrlKey && e.key === 'l') || (e.altKey && e.key === 'd')) {
+                e.preventDefault();
+                this.urlInput.focus();
+                this.urlInput.select();
             }
         });
     }
@@ -92,18 +114,21 @@ class Browser {
         if (tab.isNewTab) {
             contentElement.innerHTML = this.createNewTabPage();
         } else {
-            contentElement.innerHTML = `<iframe class="browser-frame" id="frame-${tab.id}" src="${this.getProxyUrl(tab.url)}"></iframe>`;
+            contentElement.innerHTML = `<iframe class="browser-frame" id="frame-${tab.id}" src="${this.getProxyUrl(tab.url)}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>`;
         }
         
+        // Insert tab before add button
         this.tabsBar.insertBefore(tabElement, document.getElementById('add-tab-btn'));
         this.contentArea.appendChild(contentElement);
         
+        // Tab click handler
         tabElement.addEventListener('click', (e) => {
             if (!e.target.closest('.tab-close')) {
                 this.switchToTab(tab.id);
             }
         });
         
+        // Close button handler
         tabElement.querySelector('.tab-close').addEventListener('click', (e) => {
             e.stopPropagation();
             this.closeTab(tab.id);
@@ -117,15 +142,15 @@ class Browser {
         return `
             <div class="new-tab-page">
                 <div class="new-tab-logo">/Purge</div>
-                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Secure Web Proxy</p>
+                <p style="color: var(--text); margin-bottom: 2rem; font-size: 1.2rem;">Web Proxy Browser</p>
                 <div class="new-tab-search">
-                    <input type="text" class="new-tab-input" placeholder="Search or enter website address">
+                    <input type="text" class="new-tab-input" placeholder="Search DuckDuckGo or enter website URL">
                 </div>
                 <div class="quick-links">
                     <div class="quick-link" data-url="https://duckduckgo.com">
                         <i class="fas fa-search"></i>
                         <div class="quick-link-title">DuckDuckGo</div>
-                        <div class="quick-link-desc">Search</div>
+                        <div class="quick-link-desc">Search Engine</div>
                     </div>
                     <div class="quick-link" data-url="https://youtube.com">
                         <i class="fab fa-youtube"></i>
@@ -153,63 +178,78 @@ class Browser {
                         <div class="quick-link-desc">Chat</div>
                     </div>
                 </div>
+                <div style="margin-top: 2rem; color: var(--text); font-size: 0.9rem;">
+                    <p>Using Wisp proxy server: wss://onlineosdev.nl/</p>
+                    <p>Search queries automatically use DuckDuckGo</p>
+                </div>
             </div>
         `;
     }
     
     getProxyUrl(url) {
-        // Using your Wisp server - but need to convert wss:// to https:// for iframe
-        // Try this format which many Wisp proxies use
+        // Using the Wisp server you provided
+        // Wisp servers typically work with this format
         const encodedUrl = encodeURIComponent(url);
         
-        // Option 1: Direct Wisp server usage (might need a different gateway)
-        // return `https://wisp.ilnk.info/${encodedUrl}`;
+        // Try different formats for the Wisp server
+        // Option 1: Direct through a Wisp gateway (most common)
+        return `https://wisp.ilnk.info/${encodedUrl}`;
         
-        // Option 2: Alternative public Wisp gateway
+        // Option 2: Try another gateway
         // return `https://wisp.isthe.link/${encodedUrl}`;
         
-        // Option 3: For testing, try without proxy first
-        // return url;
-        
-        // Option 4: Try using your server with wisp-to-http gateway
-        // Since your server is wss://lichology.com/wisp/, we need a gateway
-        return `https://wisp-project.org/${encodedUrl}`;
+        // Option 3: Try with proxy path
+        // return `https://wisp.ilnk.info/proxy/${encodedUrl}`;
     }
     
     switchToTab(tabId) {
+        // Hide all tabs
         this.tabs.forEach(tab => {
             if (tab.content) tab.content.classList.remove('active');
             if (tab.element) tab.element.classList.remove('active');
         });
+        
+        // Show active tab
         const activeTab = this.tabs.find(tab => tab.id === tabId);
         if (activeTab) {
             if (activeTab.content) activeTab.content.classList.add('active');
-            if (activeTab.element) tab.element.classList.add('active');
-        }
-        this.activeTabId = tabId;
-        if (activeTab) {
+            if (activeTab.element) activeTab.element.classList.add('active');
+            this.activeTabId = tabId;
+            
+            // Update URL input
             if (activeTab.isNewTab) {
                 this.urlInput.value = '';
-                this.urlInput.placeholder = "Search or enter website name";
+                this.urlInput.placeholder = "Search DuckDuckGo or enter website URL";
             } else {
                 this.urlInput.value = activeTab.url;
-                this.urlInput.placeholder = "Enter website URL";
+                this.urlInput.placeholder = "Enter URL or search terms";
             }
         }
+        
         this.updateNavButtons();
     }
     
     closeTab(tabId) {
-        if (this.tabs.length <= 1) return;
+        if (this.tabs.length <= 1) return; // Don't close the last tab
+        
         const tabIndex = this.tabs.findIndex(tab => tab.id === tabId);
         if (tabIndex === -1) return;
+        
         const tab = this.tabs[tabIndex];
+        
+        // Remove elements
         if (tab.element) tab.element.remove();
         if (tab.content) tab.content.remove();
+        
+        // Remove from array
         this.tabs.splice(tabIndex, 1);
+        
+        // Switch to another tab if needed
         if (this.activeTabId === tabId) {
             const newActiveTab = this.tabs[Math.max(0, tabIndex - 1)];
-            this.switchToTab(newActiveTab.id);
+            if (newActiveTab) {
+                this.switchToTab(newActiveTab.id);
+            }
         }
     }
     
@@ -220,75 +260,88 @@ class Browser {
     navigate() {
         const url = this.urlInput.value.trim();
         const activeTab = this.getActiveTab();
+        
         if (activeTab && url) {
+            console.log('Navigating to:', url);
             this.loadUrlInTab(activeTab.id, url);
+        } else {
+            console.log('No URL or active tab');
         }
     }
     
     loadUrlInTab(tabId, url) {
         const tab = this.tabs.find(tab => tab.id === tabId);
         if (!tab || !url) return;
+        
         this.showLoading();
         
-        // Add protocol if missing and not a search query
-        if (!url.startsWith('http://') && !url.startsWith('https://') && !url.includes(' ')) {
-            url = 'https://' + url;
+        // Process the URL
+        let finalUrl = url.trim();
+        
+        // Add protocol if missing
+        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+            // Check if it's a search query (contains spaces)
+            if (finalUrl.includes(' ')) {
+                // Convert search query to DuckDuckGo URL
+                const searchQuery = encodeURIComponent(finalUrl);
+                finalUrl = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
+            } else {
+                // Assume it's a website URL
+                finalUrl = 'https://' + finalUrl;
+            }
         }
         
-        // Handle search queries - use correct DuckDuckGo format
-        if (url.includes(' ')) {
-            const searchQuery = encodeURIComponent(url);
-            url = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
-        }
-        
-        // Also handle single words as DuckDuckGo searches
-        if (!url.includes('://') && !url.includes('.') && !url.includes(' ')) {
-            const searchQuery = encodeURIComponent(url);
-            url = `https://duckduckgo.com/?q=${searchQuery}&ia=web`;
-        }
-        
-        tab.url = url;
-        tab.title = this.extractDomain(url);
+        // Update tab info
+        tab.url = finalUrl;
+        tab.title = this.extractDomain(finalUrl);
         tab.isNewTab = false;
         
+        // Update tab title
         if (tab.element) {
             tab.element.querySelector('.tab-title').textContent = tab.title;
         }
         
-        // Set up iframe
-        const setupIframe = () => {
+        // Create iframe
+        const proxyUrl = this.getProxyUrl(finalUrl);
+        console.log('Loading URL through proxy:', finalUrl, '→', proxyUrl);
+        
+        // Create iframe
+        const iframeHtml = `<iframe class="browser-frame" id="frame-${tabId}" src="${proxyUrl}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" onload="this.contentWindow.focus()"></iframe>`;
+        
+        // Replace content or update iframe
+        if (tab.content.querySelector('.new-tab-page')) {
+            tab.content.innerHTML = iframeHtml;
+        } else {
+            const frame = document.getElementById(`frame-${tabId}`);
+            if (frame) {
+                frame.src = proxyUrl;
+            } else {
+                tab.content.innerHTML = iframeHtml;
+            }
+        }
+        
+        // Set up iframe load handler
+        setTimeout(() => {
             const frame = document.getElementById(`frame-${tabId}`);
             if (frame) {
                 frame.onload = () => {
                     this.hideLoading();
                 };
-                
                 frame.onerror = () => {
                     this.hideLoading();
-                    this.showError(tabId, 'Failed to load page. Check console for errors.');
+                    this.showError(tabId, 'Failed to load. Site might block proxy.');
                 };
             }
-        };
+        }, 100);
         
-        // Replace new tab page with iframe if needed
-        if (tab.content.querySelector('.new-tab-page')) {
-            tab.content.innerHTML = `<iframe class="browser-frame" id="frame-${tabId}" src="${this.getProxyUrl(url)}"></iframe>`;
-            setTimeout(setupIframe, 100);
-        } else {
-            const frame = document.getElementById(`frame-${tabId}`);
-            if (frame) {
-                frame.src = this.getProxyUrl(url);
-                setupIframe();
-            }
-        }
-        
-        this.urlInput.value = url;
+        // Update URL input and history
+        this.urlInput.value = finalUrl;
         tab.history = tab.history.slice(0, tab.historyIndex + 1);
-        tab.history.push(url);
+        tab.history.push(finalUrl);
         tab.historyIndex = tab.history.length - 1;
         this.updateNavButtons();
         
-        // Auto-hide loading after timeout
+        // Auto-hide loading after 5 seconds
         setTimeout(() => this.hideLoading(), 5000);
     }
     
@@ -298,13 +351,13 @@ class Browser {
             tab.content.innerHTML = `
                 <div class="new-tab-page">
                     <div class="new-tab-logo" style="color: #ef4444;">/Purge</div>
-                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">🚫 Error</p>
+                    <p style="color: var(--text); margin-bottom: 1rem; font-size: 1.2rem;">Error Loading Page</p>
                     <p style="color: var(--text); margin-bottom: 2rem;">${message}</p>
                     <div style="margin-top: 1rem;">
-                        <button class="go-btn" onclick="location.reload()" style="margin-right: 0.5rem;">
-                            <i class="fas fa-redo"></i> Reload
+                        <button class="go-btn" onclick="window.browserInstance.refresh()">
+                            <i class="fas fa-redo"></i> Try Again
                         </button>
-                        <button class="go-btn" onclick="browser.goHome()" style="background: var(--background);">
+                        <button class="go-btn" onclick="window.browserInstance.goHome()" style="background: var(--background); margin-left: 0.5rem;">
                             <i class="fas fa-home"></i> Home
                         </button>
                     </div>
@@ -315,13 +368,26 @@ class Browser {
     
     extractDomain(url) {
         try {
-            const domain = new URL(url).hostname;
-            return domain.replace('www.', '').substring(0, 20) + (domain.length > 20 ? '...' : '');
-        } catch {
-            if (url.includes('duckduckgo.com')) {
-                return 'DuckDuckGo Search';
+            const urlObj = new URL(url);
+            let domain = urlObj.hostname;
+            
+            // Remove www. prefix
+            if (domain.startsWith('www.')) {
+                domain = domain.substring(4);
             }
-            return 'New Tab';
+            
+            // Truncate if too long
+            if (domain.length > 20) {
+                domain = domain.substring(0, 17) + '...';
+            }
+            
+            return domain;
+        } catch (e) {
+            // If it's a DuckDuckGo search
+            if (url.includes('duckduckgo.com')) {
+                return 'DuckDuckGo';
+            }
+            return 'Website';
         }
     }
     
@@ -364,12 +430,15 @@ class Browser {
             activeTab.url = null;
             activeTab.title = 'New Tab';
             activeTab.isNewTab = true;
+            
             if (activeTab.element) {
                 activeTab.element.querySelector('.tab-title').textContent = 'New Tab';
             }
+            
             activeTab.content.innerHTML = this.createNewTabPage();
             this.urlInput.value = '';
-            this.urlInput.placeholder = "Search or enter website name";
+            this.urlInput.placeholder = "Search DuckDuckGo or enter website URL";
+            
             activeTab.history = [];
             activeTab.historyIndex = -1;
             this.updateNavButtons();
@@ -385,7 +454,10 @@ class Browser {
     }
 }
 
-let browser;
+// Create global instance
+let browserInstance;
+
 document.addEventListener('DOMContentLoaded', function() {
-    browser = new Browser();
+    browserInstance = new Browser();
+    window.browserInstance = browserInstance;
 });
